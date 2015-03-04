@@ -208,8 +208,16 @@ def run(args, extra_args):
         if rc:
             return rc
 
+    if args.pre:
+        for pre in args.pre.split(","):
+            _run_ansible(inventory, pre, extra_args=extra_args)
+
     rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
     return rc
+
+    if args.post:
+        for post in args.post.split(","):
+            _run_ansible(inventory, post, extra_args=extra_args)
 
 
 def main():
@@ -227,6 +235,10 @@ def main():
                         help='Run this tool in debug mode')
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
+    parser.add_argument('--pre',
+                        help='comma seperate list of playbooks to run before')
+    parser.add_argument('--post',
+                        help='comma seperate list of playbooks to run after')
 
     args, extra_args = parser.parse_known_args()
 
