@@ -101,6 +101,12 @@ def _run_ansible(inventory, playbook, user='root', module_path='./library',
         print line.rstrip()
 
     proc.communicate()[0]
+
+    if proc.returncode:
+        raise Exception("Something when wrong running: %s"
+                        "with environment: %s"
+                        % (" ".join(command), os.environ))
+
     return proc.returncode
 
 
@@ -210,14 +216,21 @@ def run(args, extra_args):
 
     if args.pre:
         for pre in args.pre.split(","):
-            _run_ansible(inventory, pre, extra_args=extra_args)
+            rc = _run_ansible(inventory, pre, extra_args=extra_args)
+            if rc:
+                return rc
 
     rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
-    return rc
+    if rc:
+        return rc
 
     if args.post:
         for post in args.post.split(","):
-            _run_ansible(inventory, post, extra_args=extra_args)
+            rc = _run_ansible(inventory, post, extra_args=extra_args)
+            if rc:
+                return rc
+
+    return 0
 
 
 def main():
