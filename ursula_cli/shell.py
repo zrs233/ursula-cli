@@ -61,6 +61,7 @@ def _append_envvar(key, value):
 
 def _set_default_env():
     _append_envvar('PYTHONUNBUFFERED', '1')  # needed in order to stream output
+    _append_envvar('PYTHONIOENCODING', 'UTF-8')  # needed to handle stdin input
     _append_envvar('ANSIBLE_FORCE_COLOR', 'yes')
     _append_envvar('ANSIBLE_SSH_ARGS', '-o ControlMaster=auto')
     _append_envvar("ANSIBLE_SSH_ARGS",
