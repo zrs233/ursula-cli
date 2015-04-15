@@ -20,6 +20,7 @@ import logging
 import os
 import subprocess
 import sys
+import yaml
 
 LOG = logging.getLogger(__name__)
 ANSIBLE_VERSION = '1.7.2-bbg'
@@ -56,6 +57,10 @@ def _append_envvar(key, value):
     if key in os.environ:
         os.environ[key] = "%s %s" % (os.environ[key], value)
     else:
+        _set_envvar(key, value)
+
+
+def _set_envvar(key, value):
         os.environ[key] = value
 
 
@@ -67,6 +72,7 @@ def _set_default_env():
     _append_envvar("ANSIBLE_SSH_ARGS",
                    "-o ControlPath=~/.ssh/controlmasters/u-%r@%h:%p")
     _append_envvar("ANSIBLE_SSH_ARGS", "-o ControlPersist=300")
+
 
 def _run_ansible(inventory, playbook, user='root', module_path='./library',
                  sudo=False, extra_args=[]):
@@ -93,9 +99,81 @@ def _run_ansible(inventory, playbook, user='root', module_path='./library',
 
     for line in iter(proc.stdout.readline, b''):
         print line.rstrip()
-    
+
     proc.communicate()[0]
     return proc.returncode
+
+
+def _vagrant_ssh_config(environment, boxes):
+    ssh_config_file = ".vagrant/%s.ssh" % os.path.basename(environment)
+    f = open(ssh_config_file, 'w')
+    for box in boxes:
+        command = [
+          'vagrant',
+          'ssh-config',
+          box
+        ]
+        proc = subprocess.Popen(command, env=os.environ.copy(),
+                                shell=False,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT)
+
+        for line in iter(proc.stdout.readline, b''):
+            f.write("%s\n" % line.rstrip())
+
+        if proc.returncode:
+            raise Exception("Failed to write SSH config to %s"
+                            % (ssh_config_file))
+            return proc.returncode
+
+    f.close()
+    _append_envvar("ANSIBLE_SSH_ARGS", "-F %s" % ssh_config_file)
+
+    return 0
+
+
+def _run_vagrant(environment):
+    vagrant_config_file = "%s/vagrant.yml" % environment
+
+    if os.path.isfile(vagrant_config_file):
+        _set_envvar("SETTINGS_FILE", vagrant_config_file)
+        vagrant_config = yaml.load(open(vagrant_config_file, 'r'))
+    else:
+        vagrant_config = yaml.load(open('vagrant.yml', 'r'))
+
+    vms = vagrant_config['vms'].keys()
+
+    rc = _vagrant_ssh_config(environment, vms)
+    if rc:
+        return rc
+
+    command = [
+        'vagrant',
+        'up',
+        '--no-provision',
+    ] + vagrant_config['vms'].keys()
+
+    LOG.debug("Running command: %s\nEnvs:%s", " ".join(command), os.environ)
+    proc = subprocess.Popen(command, env=os.environ.copy(),
+                            shell=False,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+
+    for line in iter(proc.stdout.readline, b''):
+        print line.rstrip()
+
+    if proc.returncode:
+        raise Exception("Failed to run %s with environment: %s"
+                        % " ".join(command), os.environ)
+        return proc.returncode
+    else:
+        print "**************************************************"
+        print "Ursula <3 Vagrant"
+        print "To interact with your environment via Vagrant set:"
+        print "$ export SETTINGS_FILE=%s" % vagrant_config_file
+        print "**************************************************"
+
+    return 0
 
 
 def run(args, extra_args):
@@ -123,6 +201,11 @@ def run(args, extra_args):
     if args.ursula_test:
         extra_args += ['--syntax-check', '--list-tasks']
 
+    if args.vagrant:
+        rc = _run_vagrant(environment=args.environment)
+        if rc:
+            return rc
+
     rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
     return rc
 
@@ -140,6 +223,8 @@ def main():
                         help='Test syntax for playbook')
     parser.add_argument('--ursula-debug', action='store_true',
                         help='Run this tool in debug mode')
+    parser.add_argument('--vagrant', action='store_true',
+                        help='Provision environment in vagrant')
 
     args, extra_args = parser.parse_known_args()
 
