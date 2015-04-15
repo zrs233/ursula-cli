@@ -61,7 +61,7 @@ def _append_envvar(key, value):
 
 
 def _set_envvar(key, value):
-        os.environ[key] = value
+    os.environ[key] = value
 
 
 def _set_default_env():
@@ -181,6 +181,8 @@ def run(args, extra_args):
 
     if not os.path.exists(args.environment):
         raise Exception("Environment '%s' does not exist", args.environment)
+
+    _set_envvar('URSULA_ENV', os.path.abspath(args.environment))
 
     inventory = os.path.join(args.environment, 'hosts')
     if not os.path.exists(inventory) or not os.path.isfile(inventory):
