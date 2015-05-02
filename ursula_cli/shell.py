@@ -20,6 +20,7 @@ import logging
 import os
 import subprocess
 import sys
+import traceback
 import yaml
 
 LOG = logging.getLogger(__name__)
@@ -77,6 +78,17 @@ def _set_default_env():
     _append_envvar("ANSIBLE_SSH_ARGS", "-o ControlPersist=300")
 
 
+def _get_inventory_path(environment):
+    inventory = os.path.join(environment, 'hosts')
+    if os.path.exists(inventory) and os.path.isfile(inventory):
+        return inventory
+    elif 'URSULA_INVENTORY_SCRIPT' in os.environ:
+        os.environ['URSULA_ENVIRONMENT'] = environment
+        return os.environ['URSULA_INVENTORY_SCRIPT']
+    else:
+        raise Exception("Unable to find inventory for %s" % environment)
+
+
 def _run_ansible(inventory, playbook, user='root', module_path='./library',
                  sudo=False, extra_args=[]):
     command = [
@@ -112,9 +124,9 @@ def _vagrant_ssh_config(environment, boxes):
     f = open(ssh_config_file, 'w')
     for box in boxes:
         command = [
-          'vagrant',
-          'ssh-config',
-          box
+            'vagrant',
+            'ssh-config',
+            box
         ]
         proc = subprocess.Popen(command, env=os.environ.copy(),
                                 shell=False,
@@ -179,39 +191,39 @@ def _run_vagrant(environment):
     return 0
 
 
-def run(args, extra_args):
+def run(environment, playbook, ssh_config=None, user='root', forward=False,
+        test=False, vagrant=False, extra_args=[]):
+
     _set_default_env()
+    _set_envvar('URSULA_ENV', os.path.abspath(environment))
 
-    if not os.path.exists(args.environment):
-        raise Exception("Environment '%s' does not exist", args.environment)
+    inventory = _get_inventory_path(environment)
+    LOG.info("Running ursula with inventory: %s", inventory)
 
-    _set_envvar('URSULA_ENV', os.path.abspath(args.environment))
-
-    inventory = os.path.join(args.environment, 'hosts')
-    if not os.path.exists(inventory) or not os.path.isfile(inventory):
-        raise Exception("Inventory file '%s' does not exist", inventory)
-
-    ansible_var_defaults_file = os.path.join(args.environment,
-                                             '../defaults.yml')
+    ansible_var_defaults_file = os.path.join(environment, '../defaults.yml')
     if os.path.isfile(ansible_var_defaults_file):
         _append_envvar("ANSIBLE_VAR_DEFAULTS_FILE", ansible_var_defaults_file)
 
-    ansible_ssh_config_file = os.path.join(args.environment, 'ssh_config')
+    ansible_ssh_config_file = ssh_config
+    if not ansible_ssh_config_file:
+        ansible_ssh_config_file = os.path.join(environment, 'ssh_config')
+
     if os.path.isfile(ansible_ssh_config_file):
+        LOG.info("Running ansible with ssh config %s", ansible_ssh_config_file)
         _append_envvar("ANSIBLE_SSH_ARGS", "-F %s" % ansible_ssh_config_file)
 
-    if args.ursula_forward:
+    if forward:
         _append_envvar("ANSIBLE_SSH_ARGS", "-o ForwardAgent=yes")
 
-    if args.ursula_test:
+    if test:
         extra_args += ['--syntax-check', '--list-tasks']
 
-    if args.vagrant:
-        rc = _run_vagrant(environment=args.environment)
+    if vagrant:
+        rc = _run_vagrant(environment=environment)
         if rc:
             return rc
 
-    rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
+    rc = _run_ansible(inventory, playbook, user, extra_args=extra_args)
     return rc
 
 
@@ -228,6 +240,8 @@ def main():
                         help='Test syntax for playbook')
     parser.add_argument('--ursula-debug', action='store_true',
                         help='Run this tool in debug mode')
+    parser.add_argument('--ursula-ssh-config',
+                        help='The ssh config to use.')
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
 
@@ -239,10 +253,13 @@ def main():
             log_level = logging.DEBUG
         _initialize_logger(log_level)
         _check_ansible_version()
-        rc = run(args, extra_args)
+        rc = run(args.environment, args.playbook, args.ursula_ssh_config,
+                 args.ursula_forward, args.ursula_test,
+                 args.vagrant, extra_args)
         sys.exit(rc)
     except Exception as e:
         LOG.error(e)
+        LOG.debug(traceback.print_exc(file=sys.stdout))
         sys.exit(-1)
 
 
