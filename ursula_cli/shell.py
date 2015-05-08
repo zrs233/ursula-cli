@@ -65,8 +65,9 @@ def _set_envvar(key, value):
 
 
 def _set_default_env():
-    if not os.path.exists('~/.ssh/controlmasters'):
-        os.makedirs('~/.ssh/controlmasters')
+    cm_path = os.path.expanduser('~/.ssh/controlmasters')
+    if not os.path.exists(cm_path):
+        os.makedirs(cm_path)
 
     _set_envvar('PYTHONUNBUFFERED', '1')  # needed in order to stream output
     _set_envvar('PYTHONIOENCODING', 'UTF-8')  # needed to handle stdin input
