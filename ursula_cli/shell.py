@@ -91,7 +91,7 @@ def _get_inventory_path(environment):
 
 
 def _run_ansible(inventory, playbook, user='root', module_path='./library',
-                 sudo=False, extra_args=[]):
+                 sudo=False, pipe_to=None, extra_args=[]):
     command = [
         'ansible-playbook',
         '--inventory-file',
@@ -110,13 +110,16 @@ def _run_ansible(inventory, playbook, user='root', module_path='./library',
     LOG.debug("Running command: %s with environment: %s",
               " ".join(command), os.environ)
     proc = subprocess.Popen(command, env=os.environ.copy(), shell=False,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
+                            stdout=subprocess.PIPE)
+    if not pipe_to:
+        for line in iter(proc.stdout.readline, b''):
+            print line.rstrip()
+            proc.communicate()[0]
+    else:
+        chain = subprocess.Popen(pipe_to, stdin=proc.stdout)
+        proc.wait()
+        chain.wait()
 
-    for line in iter(proc.stdout.readline, b''):
-        print line.rstrip()
-
-    proc.communicate()[0]
     return proc.returncode
 
 
@@ -193,7 +196,7 @@ def _run_vagrant(environment):
 
 
 def run(environment, playbook, ssh_config=None, user='root', forward=False,
-        test=False, vagrant=False, extra_args=[]):
+        test=False, vagrant=False, pipe_to=None, extra_args=[]):
 
     _set_default_env()
     _set_envvar('URSULA_ENV', os.path.abspath(environment))
@@ -224,7 +227,8 @@ def run(environment, playbook, ssh_config=None, user='root', forward=False,
         if rc:
             return rc
 
-    rc = _run_ansible(inventory, playbook, user, extra_args=extra_args)
+    rc = _run_ansible(inventory, playbook, user, pipe_to=pipe_to,
+                      extra_args=extra_args)
     return rc
 
 
