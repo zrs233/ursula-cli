@@ -196,7 +196,11 @@ def _run_vagrant(environment):
 
 
 def run(environment, playbook, ssh_config=None, user='root', forward=False,
+<<<<<<< HEAD
         test=False, vagrant=False, pipe_to=None, extra_args=[]):
+=======
+        test=False, vagrant=False, extra_args=[]):
+>>>>>>> 11c250c3def1175f9bbfe65084903598359122c3
 
     _set_default_env()
     _set_envvar('URSULA_ENV', os.path.abspath(environment))
@@ -227,8 +231,12 @@ def run(environment, playbook, ssh_config=None, user='root', forward=False,
         if rc:
             return rc
 
+<<<<<<< HEAD
     rc = _run_ansible(inventory, playbook, user, pipe_to=pipe_to,
                       extra_args=extra_args)
+=======
+    rc = _run_ansible(inventory, playbook, user, extra_args=extra_args)
+>>>>>>> 11c250c3def1175f9bbfe65084903598359122c3
     return rc
 
 
