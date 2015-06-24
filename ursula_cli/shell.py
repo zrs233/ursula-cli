@@ -47,7 +47,7 @@ def _check_ansible_version():
     version_output = output.split('\n')[0]
     version = version_output.split(' ')[1]
     if not version == ANSIBLE_VERSION:
-        raise Exception("You are not using ansible-playbook '%s'. "
+        raise Exception("You are using ansible-playbook '%s'. "
                         "Current required version is: '%s'. You may install "
                         "the correct version with 'pip install -U -r "
                         "requirements.txt'" % (version, ANSIBLE_VERSION))
