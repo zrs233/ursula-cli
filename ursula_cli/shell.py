@@ -23,7 +23,7 @@ import sys
 import yaml
 
 LOG = logging.getLogger(__name__)
-ANSIBLE_VERSION = '1.7.2-bbg'
+ANSIBLE_VERSION = '1.9.2-bbg'
 
 
 def _initialize_logger(level=logging.DEBUG, logfile=None):
