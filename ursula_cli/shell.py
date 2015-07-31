@@ -20,6 +20,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 import yaml
 
 LOG = logging.getLogger(__name__)
@@ -131,10 +132,15 @@ def _vagrant_ssh_config(environment, boxes):
             return proc.returncode
 
     f.close()
+
+    if 'not yet ready for SSH' in open(ssh_config_file).read():
+        LOG.debug("waiting for Vagrant to be ready for SSH")
+        time.sleep(5)
+        _vagrant_ssh_config(environment, boxes)
+
     _append_envvar("ANSIBLE_SSH_ARGS", "-F %s" % ssh_config_file)
 
     return 0
-
 
 def _run_vagrant(environment):
     vagrant_config_file = "%s/vagrant.yml" % environment
@@ -146,10 +152,6 @@ def _run_vagrant(environment):
         vagrant_config = yaml.load(open('vagrant.yml', 'r'))
 
     vms = vagrant_config['vms'].keys()
-
-    rc = _vagrant_ssh_config(environment, vms)
-    if rc:
-        return rc
 
     command = [
         'vagrant',
@@ -176,6 +178,10 @@ def _run_vagrant(environment):
         print "To interact with your environment via Vagrant set:"
         print "$ export SETTINGS_FILE=%s" % vagrant_config_file
         print "**************************************************"
+
+        rc = _vagrant_ssh_config(environment, vms)
+        if rc:
+            return rc
 
     return 0
 
@@ -208,12 +214,17 @@ def run(args, extra_args):
         extra_args += ['--syntax-check', '--list-tasks']
 
     if args.vagrant:
+        if os.path.exists('envs/example/vagrant.yml') and os.path.isfile('envs/example/vagrant.yml'):
+            extra_args += ['--extra-vars', '@envs/example/vagrant.yml']
         rc = _run_vagrant(environment=args.environment)
         if rc:
             return rc
 
-    rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
-    return rc
+        rc = _run_ansible(inventory, args.playbook, extra_args=extra_args, user='vagrant', sudo=True)
+        return rc
+    else:
+        rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
+        return rc
 
 
 def main():
