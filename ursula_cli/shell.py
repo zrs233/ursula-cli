@@ -18,6 +18,7 @@
 import argparse
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -142,6 +143,11 @@ def _vagrant_ssh_config(environment, boxes):
 
     return 0
 
+def _vagrant_copy_yml(environment):
+    src = "%s/vagrant.yml" % environment
+    dest = ".vagrant/vagrant.yml"
+    shutil.copy2(src, dest)
+
 def _run_vagrant(environment):
     vagrant_config_file = "%s/vagrant.yml" % environment
 
@@ -173,6 +179,7 @@ def _run_vagrant(environment):
                         % " ".join(command), os.environ)
         return proc.returncode
     else:
+
         print "**************************************************"
         print "Ursula <3 Vagrant"
         print "To interact with your environment via Vagrant set:"
@@ -219,7 +226,7 @@ def run(args, extra_args):
         rc = _run_vagrant(environment=args.environment)
         if rc:
             return rc
-
+        _vagrant_copy_yml(args.environment)
         rc = _run_ansible(inventory, args.playbook, extra_args=extra_args, user='vagrant', sudo=True)
         return rc
     else:
