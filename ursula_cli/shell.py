@@ -210,7 +210,10 @@ def run(args, extra_args):
     if os.path.isfile(ansible_var_defaults_file):
         _append_envvar("ANSIBLE_VAR_DEFAULTS_FILE", ansible_var_defaults_file)
 
-    ansible_ssh_config_file = os.path.join(args.environment, 'ssh_config')
+    if args.ursula_ssh_config:
+        ansible_ssh_config_file = args.ursula_ssh_config
+    else:
+        ansible_ssh_config_file = os.path.join(args.environment, 'ssh_config')
     if os.path.isfile(ansible_ssh_config_file):
         _append_envvar("ANSIBLE_SSH_ARGS", "-F %s" % ansible_ssh_config_file)
 
@@ -230,7 +233,7 @@ def run(args, extra_args):
         rc = _run_ansible(inventory, args.playbook, extra_args=extra_args, user='vagrant', sudo=True)
         return rc
     else:
-        rc = _run_ansible(inventory, args.playbook, extra_args=extra_args)
+        rc = _run_ansible(inventory, args.playbook, extra_args=extra_args, user=args.ursula_user, sudo=args.ursula_sudo)
         return rc
 
 
@@ -238,9 +241,10 @@ def main():
     parser = argparse.ArgumentParser(description='A CLI wrapper for ansible')
     parser.add_argument('environment', help='The environment you want to use')
     parser.add_argument('playbook', help='The playbook to run')
-
     # any args should be namespaced --ursula-$SOMETHING so as not to conflict
     # with ansible-playbook's command line parameters
+    parser.add_argument('--ursula-user', help='The user to run as', default='root')
+    parser.add_argument('--ursula-ssh-config', help='path to your ssh config')
     parser.add_argument('--ursula-forward', action='store_true',
                         help='The playbook to run')
     parser.add_argument('--ursula-test', action='store_true',
@@ -249,6 +253,8 @@ def main():
                         help='Run this tool in debug mode')
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
+    parser.add_argument('--ursula-sudo', action='store_true',
+                        help='Enable sudo')
 
     args, extra_args = parser.parse_known_args()
 
