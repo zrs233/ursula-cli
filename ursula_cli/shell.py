@@ -19,6 +19,7 @@ import argparse
 import logging
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -79,6 +80,13 @@ def _set_default_env():
                    "-o ControlPath=~/.ssh/controlmasters/u-%r@%h:%p")
     _append_envvar("ANSIBLE_SSH_ARGS", "-o ControlPersist=300")
 
+def test_ssh(host):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, 22))
+    except Exception as e:
+        return False
+    return True
 
 def _run_ansible(inventory, playbook, user='root', module_path='./library',
                  sudo=False, extra_args=[]):
@@ -234,6 +242,7 @@ Host floating_ip
                 text_file.write(ssh_config)
 
     for server, ip in servers.iteritems():
+        test_ip = ip
         ssh_config_pre = """
 Host {server}
   Hostname {ip}
@@ -247,6 +256,16 @@ Host {server}
     ansible_ssh_config_file = "tmp/ssh_config"
     if os.path.isfile(ansible_ssh_config_file):
         _append_envvar("ANSIBLE_SSH_ARGS", "-F %s" % ansible_ssh_config_file)
+
+    LOG.debug("waiting for SSH connectivity...")
+    if floating_ip:
+        while not test_ssh(floating_ip):
+            LOG.debug("waiting for SSH connectivity...")
+            time.sleep(5)
+    else:
+        while not test_ssh(test_ip):
+            LOG.debug("waiting for SSH connectivity...")
+            time.sleep(5)
 
 def _vagrant_copy_yml(environment):
     src = "%s/vagrant.yml" % environment
@@ -355,8 +374,6 @@ def run(args, extra_args):
             args.ursula_user = "ubuntu"
         if not args.ursula_sudo:
             args.ursula_sudo = True
-        LOG.debug("sleeping until SSH is ready...")
-        time.sleep(60)
     else:
         if not args.ursula_user:
             args.ursula_user = "root"
@@ -379,8 +396,8 @@ def main():
     parser.add_argument('--ursula-debug', action='store_true',
                         help='Run this tool in debug mode')
     parser.add_argument('--provisioner',
-                        help='The external provisioner to use vagrant,heat)',
-                        default=None)
+                        help='The external provisioner to use',
+                        default=None, choices=["vagrant", "heat"])
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
     parser.add_argument('--ursula-sudo', action='store_true',
