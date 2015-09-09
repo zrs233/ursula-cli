@@ -19,6 +19,7 @@ import argparse
 import logging
 import os
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -80,6 +81,15 @@ def _set_default_env():
     _append_envvar("ANSIBLE_SSH_ARGS", "-o ControlPersist=300")
 
 
+def test_ssh(host):
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect((host, 22))
+    except Exception as e:
+        return False
+    return True
+
+
 def _run_ansible(inventory, playbook, user='root', module_path='./library',
                  sudo=False, extra_args=[]):
     command = [
@@ -115,9 +125,9 @@ def _vagrant_ssh_config(environment, boxes):
     f = open(ssh_config_file, 'w')
     for box in boxes:
         command = [
-          'vagrant',
-          'ssh-config',
-          box
+            'vagrant',
+            'ssh-config',
+            box
         ]
         proc = subprocess.Popen(command, env=os.environ.copy(),
                                 shell=False,
@@ -143,10 +153,135 @@ def _vagrant_ssh_config(environment, boxes):
 
     return 0
 
+
+def _run_heat(args, hot):
+    try:
+        from heatclient.client import Client as Heat_Client
+        from keystoneclient.v2_0 import Client as Keystone_Client
+    except ImportError as e:
+        LOG.error("You must have python-heatclient in your python path")
+        raise Exception(e)
+
+    CREDS = {
+        'username': os.environ['OS_USERNAME'],
+        'password': os.environ['OS_PASSWORD'],
+        'tenant_name': os.environ['OS_TENANT_NAME'],
+        'auth_url': os.environ['OS_AUTH_URL'],
+    }
+
+    stack_name = os.path.basename(args.environment)
+
+    STACK = {
+        'stack_name': stack_name,
+        'template': hot
+    }
+
+    LOG.debug("Logging into heat")
+
+    ks_client = Keystone_Client(**CREDS)
+    heat_endpoint = ks_client.service_catalog.url_for(
+        service_type='orchestration', endpoint_type='publicURL')
+    heatclient = Heat_Client('1', heat_endpoint, token=ks_client.auth_token)
+
+    try:
+        LOG.debug("Checking for existence of heat stack: %s" % stack_name)
+        heatclient.stacks.get(stack_name)
+        stack_exists = True
+        LOG.debug("Already exists")
+    except Exception as e:
+        if e.code == 404:
+            stack_exists = False
+        else:
+            raise e
+
+    if not stack_exists:
+        LOG.debug("Creating stack")
+        heatclient.stacks.create(**STACK)
+        time.sleep(5)
+        while heatclient.stacks.get(stack_name).status == 'IN_PROGRESS':
+            LOG.debug("Waiting on stack creation...")
+            time.sleep(5)
+
+    stack = heatclient.stacks.get(stack_name)
+    if stack.status != 'COMPLETE':
+        raise Exception("stack %s returned an unexpected status (%s)" %
+                        stack_name, stack.status)
+
+    LOG.debug("Stack created!")
+
+    servers = {}
+    floating_ip = None
+    for output in stack.outputs:
+        if output['output_key'] == "floating_ip":
+            floating_ip = output['output_value']
+            LOG.debug("floating_ip : %s" % floating_ip)
+        elif output['output_key'] == "private_key":
+            private_key = output['output_value']
+        else:
+            servers[output['output_key']] = output['output_value']
+            LOG.debug("server : %s (%s) " %
+                      (output['output_key'], output['output_value']))
+
+    LOG.debug("writing ssh_key to /tmp/ssh_key")
+    with open("tmp/ssh_key", "w") as text_file:
+        text_file.write(private_key)
+    os.chmod("tmp/ssh_key", 0600)
+    args.ursula_ssh_key = "tmp/ssh_key"
+
+    ssh_config = """
+Host *
+  User ubuntu
+  ForwardAgent yes
+  UserKnownHostsFile /dev/null
+  StrictHostKeyChecking no
+  PasswordAuthentication no
+  IdentityFile tmp/ssh_key
+    """
+    with open("tmp/ssh_config", "w") as text_file:
+        text_file.write(ssh_config)
+
+    if floating_ip:
+        ssh_config_pre = """
+Host floating_ip
+  Hostname {floating_ip}
+        """
+        ssh_config = ssh_config_pre.format(floating_ip=floating_ip)
+        with open("tmp/ssh_config", "a") as text_file:
+            text_file.write(ssh_config)
+
+    for server, ip in servers.iteritems():
+        test_ip = ip
+        ssh_config_pre = """
+Host {server}
+  Hostname {ip}
+        """
+        if floating_ip:
+            ssh_config_pre += "ProxyCommand ssh -o StrictHostKeyChecking=no ubuntu@{floating_ip} nc %h %p\n\n"
+        ssh_config = ssh_config_pre.format(
+            server=server, ip=ip, floating_ip=floating_ip)
+        with open("tmp/ssh_config", "a") as text_file:
+            text_file.write(ssh_config)
+
+    ansible_ssh_config_file = "tmp/ssh_config"
+    if os.path.isfile(ansible_ssh_config_file):
+        _append_envvar("ANSIBLE_SSH_ARGS", "-F %s" % ansible_ssh_config_file)
+
+    LOG.debug("waiting for SSH connectivity...")
+    if floating_ip:
+        while not test_ssh(floating_ip):
+            LOG.debug("waiting for SSH connectivity...")
+            time.sleep(5)
+    else:
+        while not test_ssh(test_ip):
+            LOG.debug("waiting for SSH connectivity...")
+            time.sleep(5)
+
+
 def _vagrant_copy_yml(environment):
     src = "%s/vagrant.yml" % environment
     dest = ".vagrant/vagrant.yml"
     shutil.copy2(src, dest)
+
 
 def _run_vagrant(environment):
     vagrant_config_file = "%s/vagrant.yml" % environment
@@ -223,18 +358,39 @@ def run(args, extra_args):
     if args.ursula_test:
         extra_args += ['--syntax-check', '--list-tasks']
 
-    if args.vagrant:
+    if args.provisioner == "vagrant":
         if os.path.exists('envs/example/vagrant.yml') and os.path.isfile('envs/example/vagrant.yml'):
             extra_args += ['--extra-vars', '@envs/example/vagrant.yml']
         rc = _run_vagrant(environment=args.environment)
         if rc:
             return rc
         _vagrant_copy_yml(args.environment)
-        rc = _run_ansible(inventory, args.playbook, extra_args=extra_args, user='vagrant', sudo=True)
-        return rc
+        if not args.ursula_user:
+            args.ursula_user = "vagrant"
+        if not args.ursula_sudo:
+            args.ursula_sudo = True
+    if args.provisioner == "heat":
+        heat_file = "%s/heat_stack.yml" % args.environment
+        if not os.path.exists(heat_file):
+            raise "heat provider requires a heat file at %s" % heat_file
+        with open(heat_file, "r") as myfile:
+            hot = myfile.read()
+        heat_extra_args = "%s/vars_heat.yml" % args.environment
+        if os.path.exists(heat_extra_args) and os.path.isfile(heat_extra_args):
+            extra_args += ['--extra-vars', '@%s' % heat_extra_args]
+        rc = _run_heat(args=args, hot=hot)
+        if rc:
+            return rc
+        if not args.ursula_user:
+            args.ursula_user = "ubuntu"
+        if not args.ursula_sudo:
+            args.ursula_sudo = True
     else:
-        rc = _run_ansible(inventory, args.playbook, extra_args=extra_args, user=args.ursula_user, sudo=args.ursula_sudo)
-        return rc
+        if not args.ursula_user:
+            args.ursula_user = "root"
+    rc = _run_ansible(inventory, args.playbook, extra_args=extra_args,
+                      user=args.ursula_user, sudo=args.ursula_sudo)
+    return rc
 
 
 def main():
@@ -243,7 +399,8 @@ def main():
     parser.add_argument('playbook', help='The playbook to run')
     # any args should be namespaced --ursula-$SOMETHING so as not to conflict
     # with ansible-playbook's command line parameters
-    parser.add_argument('--ursula-user', help='The user to run as', default='root')
+    parser.add_argument(
+        '--ursula-user', help='The user to run as', default=None)
     parser.add_argument('--ursula-ssh-config', help='path to your ssh config')
     parser.add_argument('--ursula-forward', action='store_true',
                         help='The playbook to run')
@@ -251,18 +408,23 @@ def main():
                         help='Test syntax for playbook')
     parser.add_argument('--ursula-debug', action='store_true',
                         help='Run this tool in debug mode')
+    parser.add_argument('--provisioner',
+                        help='The external provisioner to use',
+                        default=None, choices=["vagrant", "heat"])
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
     parser.add_argument('--ursula-sudo', action='store_true',
                         help='Enable sudo')
 
     args, extra_args = parser.parse_known_args()
-
     try:
         log_level = logging.INFO
         if args.ursula_debug:
             log_level = logging.DEBUG
         _initialize_logger(log_level)
+        if args.vagrant:
+            LOG.warn("--vagrant is depreciated, use --provisioner=vagrant")
+            args.provisioner = "vagrant"
         _check_ansible_version()
         rc = run(args, extra_args)
         sys.exit(rc)
