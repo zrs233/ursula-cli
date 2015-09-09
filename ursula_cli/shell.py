@@ -203,7 +203,7 @@ def run(args, extra_args):
 
     inventory = os.path.join(args.environment, 'hosts')
     if not os.path.exists(inventory) or not os.path.isfile(inventory):
-        raise Exception("Inventory file '%s' does not exist", inventory)
+        raise Exception("Inventory file '%s' does not exist" % inventory)
 
     ansible_var_defaults_file = os.path.join(args.environment,
                                              '../defaults.yml')
