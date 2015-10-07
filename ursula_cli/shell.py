@@ -192,7 +192,7 @@ def _run_heat(args, hot):
         if e.code == 404:
             stack_exists = False
         else:
-            raise e
+            raise Exception(e)
 
     if not stack_exists:
         LOG.debug("Creating stack")
@@ -256,7 +256,8 @@ Host {server}
   Hostname {ip}
         """
         if floating_ip:
-            ssh_config_pre += "ProxyCommand ssh -o StrictHostKeyChecking=no ubuntu@{floating_ip} nc %h %p\n\n"
+            ssh_config_pre += ("ProxyCommand ssh -o StrictHostKeyChecking=no"
+                               " ubuntu@{floating_ip} nc %h %p\n\n")
         ssh_config = ssh_config_pre.format(
             server=server, ip=ip, floating_ip=floating_ip)
         with open("tmp/ssh_config", "a") as text_file:
@@ -359,8 +360,9 @@ def run(args, extra_args):
         extra_args += ['--syntax-check', '--list-tasks']
 
     if args.provisioner == "vagrant":
-        if os.path.exists('envs/example/vagrant.yml') and os.path.isfile('envs/example/vagrant.yml'):
-            extra_args += ['--extra-vars', '@envs/example/vagrant.yml']
+        if os.path.exists('envs/example/vagrant.yml'):
+            if os.path.isfile('envs/example/vagrant.yml'):
+                extra_args += ['--extra-vars', '@envs/example/vagrant.yml']
         rc = _run_vagrant(environment=args.environment)
         if rc:
             return rc
@@ -372,7 +374,8 @@ def run(args, extra_args):
     if args.provisioner == "heat":
         heat_file = "%s/heat_stack.yml" % args.environment
         if not os.path.exists(heat_file):
-            raise "heat provider requires a heat file at %s" % heat_file
+            raise Exception(
+                "heat provider requires a heat file at %s" % heat_file)
         with open(heat_file, "r") as myfile:
             hot = myfile.read()
         heat_extra_args = "%s/vars_heat.yml" % args.environment
