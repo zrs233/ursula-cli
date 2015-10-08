@@ -154,6 +154,19 @@ def _vagrant_ssh_config(environment, boxes):
     return 0
 
 
+def _ssh_add(keyfile):
+    command = ["ssh-add", keyfile]
+    proc = subprocess.Popen(command, env=os.environ.copy(),
+                            shell=False,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+
+    if proc.returncode:
+        raise Exception("Failed to run %s with environment: %s"
+                        % " ".join(command), os.environ)
+        return proc.returncode
+
+
 def _run_heat(args, hot):
     try:
         from heatclient.client import Client as Heat_Client
@@ -236,7 +249,7 @@ Host *
   StrictHostKeyChecking no
   PasswordAuthentication no
   IdentityFile tmp/ssh_key
-    """
+"""
     with open("tmp/ssh_config", "w") as text_file:
         text_file.write(ssh_config)
 
@@ -244,19 +257,20 @@ Host *
         ssh_config_pre = """
 Host floating_ip
   Hostname {floating_ip}
-        """
+"""
         ssh_config = ssh_config_pre.format(floating_ip=floating_ip)
         with open("tmp/ssh_config", "a") as text_file:
             text_file.write(ssh_config)
+        _ssh_add("tmp/ssh_key")
 
     for server, ip in servers.iteritems():
         test_ip = ip
         ssh_config_pre = """
 Host {server}
   Hostname {ip}
-        """
+"""
         if floating_ip:
-            ssh_config_pre += ("ProxyCommand ssh -o StrictHostKeyChecking=no"
+            ssh_config_pre += ("  ProxyCommand ssh -o StrictHostKeyChecking=no"
                                " ubuntu@{floating_ip} nc %h %p\n\n")
         ssh_config = ssh_config_pre.format(
             server=server, ip=ip, floating_ip=floating_ip)
