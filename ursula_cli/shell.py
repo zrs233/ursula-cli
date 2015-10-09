@@ -218,7 +218,7 @@ def _run_heat(args, hot):
     stack = heatclient.stacks.get(stack_name)
     if stack.status != 'COMPLETE':
         raise Exception("stack %s returned an unexpected status (%s)" %
-                        stack_name, stack.status)
+                        (stack_name, stack.status))
 
     LOG.debug("Stack created!")
 
