@@ -241,15 +241,17 @@ def _run_heat(args, hot):
     os.chmod("tmp/ssh_key", 0600)
     args.ursula_ssh_key = "tmp/ssh_key"
 
-    ssh_config = """
+    ssh_key_path = os.path.abspath("tmp/ssh_key")
+    ssh_config_pre = """
 Host *
   User ubuntu
   ForwardAgent yes
   UserKnownHostsFile /dev/null
   StrictHostKeyChecking no
   PasswordAuthentication no
-  IdentityFile tmp/ssh_key
+  IdentityFile {ssh_key_path}
 """
+    ssh_config = ssh_config_pre.format(ssh_key_path=ssh_key_path)
     with open("tmp/ssh_config", "w") as text_file:
         text_file.write(ssh_config)
 
@@ -270,10 +272,11 @@ Host {server}
   Hostname {ip}
 """
         if floating_ip:
-            ssh_config_pre += ("  ProxyCommand ssh -o StrictHostKeyChecking=no"
-                               " ubuntu@{floating_ip} nc %h %p\n\n")
+            ssh_config_path = os.path.abspath("tmp/ssh_config")
+            ssh_config_pre += ("  ProxyCommand ssh -F {ssh_config_path}"
+                               " floating_ip nc %h %p\n\n")
         ssh_config = ssh_config_pre.format(
-            server=server, ip=ip, floating_ip=floating_ip)
+            server=server, ip=ip, ssh_config_path=ssh_config_path)
         with open("tmp/ssh_config", "a") as text_file:
             text_file.write(ssh_config)
 
