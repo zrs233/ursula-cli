@@ -1,1 +1,2 @@
 PyYAML
+-e git://github.com/blueboxgroup/ansible.git@stable-1.9-bb#egg=ansible
