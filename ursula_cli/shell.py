@@ -355,6 +355,10 @@ def run(args, extra_args):
     if not os.path.exists(inventory) or not os.path.isfile(inventory):
         raise Exception("Inventory file '%s' does not exist" % inventory)
 
+    # Try 2.0 first, fall back to unversioned defaults
+    ansible_var_defaults_file = os.path.join(args.environment,
+                                             '../defaults-2.0.yml')
+    if not os.path.isfile(ansible_var_defaults_file):
     ansible_var_defaults_file = os.path.join(args.environment,
                                              '../defaults.yml')
     if os.path.isfile(ansible_var_defaults_file):
