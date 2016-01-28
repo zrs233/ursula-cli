@@ -140,7 +140,6 @@ def _vagrant_ssh_config(environment, boxes):
         if proc.returncode:
             raise Exception("Failed to write SSH config to %s"
                             % (ssh_config_file))
-            return proc.returncode
 
     f.close()
 
@@ -162,9 +161,10 @@ def _ssh_add(keyfile):
                             stderr=subprocess.STDOUT)
 
     if proc.returncode:
-        raise Exception("Failed to run %s with environment: %s"
-                        % " ".join(command), os.environ)
-        return proc.returncode
+        raise Exception(
+            "Failed to run %s with environment: %s"
+            % (" ".join(command), os.environ)
+        )
 
 
 def _run_heat(args, hot):
@@ -325,11 +325,12 @@ def _run_vagrant(environment):
         print line.rstrip()
 
     if proc.returncode:
-        raise Exception("Failed to run %s with environment: %s"
-                        % " ".join(command), os.environ)
-        return proc.returncode
-    else:
+        raise Exception(
+            "Failed to run %s with environment: %s"
+            % (" ".join(command), os.environ)
+        )
 
+    else:
         print "**************************************************"
         print "Ursula <3 Vagrant"
         print "To interact with your environment via Vagrant set:"
@@ -347,7 +348,7 @@ def run(args, extra_args):
     _set_default_env()
 
     if not os.path.exists(args.environment):
-        raise Exception("Environment '%s' does not exist", args.environment)
+        raise Exception("Environment '%s' does not exist" % args.environment)
 
     _set_envvar('URSULA_ENV', os.path.abspath(args.environment))
 
