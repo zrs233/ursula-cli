@@ -416,7 +416,7 @@ def main():
         '--ursula-user', help='The user to run as', default=None)
     parser.add_argument('--ursula-ssh-config', help='path to your ssh config')
     parser.add_argument('--ursula-forward', action='store_true',
-                        help='The playbook to run')
+                        help='Forward SSH agent')
     parser.add_argument('--ursula-test', action='store_true',
                         help='Test syntax for playbook')
     parser.add_argument('--ursula-debug', action='store_true',
