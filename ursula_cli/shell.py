@@ -15,6 +15,7 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 
+import ansible
 import os
 import sys
 import time
@@ -27,8 +28,10 @@ from ConfigParser import ConfigParser, NoOptionError, NoSectionError
 
 import yaml
 
+from distutils.version import LooseVersion
+
 LOG = logging.getLogger(__name__)
-ANSIBLE_VERSION = '1.9.2-bbg'
+ANSIBLE_VERSION = '2.0'
 
 
 def init_logfile():
@@ -62,16 +65,8 @@ def _initialize_logger(level=logging.DEBUG, logfile=None):
 
 
 def _check_ansible_version():
-    process = subprocess.Popen(
-        ["ansible-playbook --version"], shell=True,
-        stdout=subprocess.PIPE)
-    output, _ = process.communicate()
-    retcode = process.poll()
-    if retcode:
-        raise Exception("Error discovering ansible version")
-    version_output = output.split('\n')[0]
-    version = version_output.split(' ')[1]
-    if not version == ANSIBLE_VERSION:
+    version = ansible.__version__
+    if not LooseVersion(version) >= LooseVersion(ANSIBLE_VERSION):
         raise Exception("You are using ansible-playbook '%s'. "
                         "Current required version is: '%s'. You may install "
                         "the correct version with 'pip install -U -r "
