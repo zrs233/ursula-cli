@@ -15,7 +15,6 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 
-import ansible
 import os
 import sys
 import time
@@ -24,11 +23,12 @@ import socket
 import logging
 import argparse
 import subprocess
+from distutils.version import LooseVersion
 from ConfigParser import ConfigParser, NoOptionError, NoSectionError
 
 import yaml
+import ansible
 
-from distutils.version import LooseVersion
 
 LOG = logging.getLogger(__name__)
 MINIMUM_ANSIBLE_VERSION = '1.9'
