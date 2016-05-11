@@ -182,7 +182,10 @@ def _run_heat(args, hot):
         'auth_url': os.environ['OS_AUTH_URL'],
     }
 
-    stack_name = os.path.basename(args.environment)
+    if args.heat_stack_name:
+        stack_name = args.heat_stack_name
+    else:
+        stack_name = os.path.basename(args.environment)
 
     STACK = {
         'stack_name': stack_name,
@@ -427,6 +430,9 @@ def main():
     parser.add_argument('--provisioner',
                         help='The external provisioner to use',
                         default=None, choices=["vagrant", "heat"])
+    parser.add_argument('--heat-stack-name',
+                        help='Name of the heat stack when heat provisioner is used',
+                        default=None)
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
     parser.add_argument('--ursula-sudo', action='store_true',
