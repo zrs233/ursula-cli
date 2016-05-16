@@ -15,14 +15,15 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 
-import argparse
-import logging
 import os
-import shutil
-import socket
-import subprocess
 import sys
 import time
+import shutil
+import socket
+import logging
+import argparse
+import subprocess
+
 import yaml
 
 LOG = logging.getLogger(__name__)
