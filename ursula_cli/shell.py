@@ -15,21 +15,38 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 
-import argparse
-import logging
 import os
-import shutil
-import socket
-import subprocess
 import sys
 import time
+import shutil
+import socket
+import logging
+import argparse
+import subprocess
+from ConfigParser import ConfigParser, NoOptionError
+
 import yaml
 
 LOG = logging.getLogger(__name__)
 ANSIBLE_VERSION = '1.9.2-bbg'
 
 
+def init_logfile():
+    config = ConfigParser()
+    config.read('ansible.cfg')
+    try:
+        cfg_log = config.get('defaults', 'log_path')
+    except NoOptionError:
+        cfg_log = None
+
+    logfile = os.path.join(os.getcwd(), cfg_log or 'ursula.log')
+    if not os.path.exists(logfile):
+        with open(logfile, 'a'):
+            os.utime(logfile, None)
+
+
 def _initialize_logger(level=logging.DEBUG, logfile=None):
+    init_logfile()
     global LOG
     LOG.setLevel(level)
 
@@ -412,7 +429,7 @@ def run(args, extra_args):
     return rc
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(description='A CLI wrapper for ansible')
     parser.add_argument('environment', help='The environment you want to use')
     parser.add_argument('playbook', help='The playbook to run')
@@ -430,15 +447,19 @@ def main():
     parser.add_argument('--provisioner',
                         help='The external provisioner to use',
                         default=None, choices=["vagrant", "heat"])
-    parser.add_argument('--heat-stack-name',
-                        help='Name of the heat stack when heat provisioner is used',
-                        default=None)
+    parser.add_argument(
+        '--heat-stack-name', default=None,
+        help='Name of the heat stack when heat provisioner is used',
+    )
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
     parser.add_argument('--ursula-sudo', action='store_true',
                         help='Enable sudo')
+    return parser.parse_known_args()
 
-    args, extra_args = parser.parse_known_args()
+
+def main():
+    args, extra_args = parse_args()
     try:
         log_level = logging.INFO
         if args.ursula_debug:
