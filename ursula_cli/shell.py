@@ -23,6 +23,7 @@ import socket
 import logging
 import argparse
 import subprocess
+from ConfigParser import ConfigParser, NoOptionError
 
 import yaml
 
@@ -30,7 +31,22 @@ LOG = logging.getLogger(__name__)
 ANSIBLE_VERSION = '1.9.2-bbg'
 
 
+def init_logfile():
+    config = ConfigParser()
+    config.read('ansible.cfg')
+    try:
+        cfg_log = config.get('defaults', 'log_path')
+    except NoOptionError:
+        cfg_log = None
+
+    logfile = os.path.join(os.getcwd(), cfg_log or 'ursula.log')
+    if not os.path.exists(logfile):
+        with open(logfile, 'a'):
+            os.utime(logfile, None)
+
+
 def _initialize_logger(level=logging.DEBUG, logfile=None):
+    init_logfile()
     global LOG
     LOG.setLevel(level)
 
