@@ -412,7 +412,7 @@ def run(args, extra_args):
     return rc
 
 
-def main():
+def parse_args():
     parser = argparse.ArgumentParser(description='A CLI wrapper for ansible')
     parser.add_argument('environment', help='The environment you want to use')
     parser.add_argument('playbook', help='The playbook to run')
@@ -430,15 +430,19 @@ def main():
     parser.add_argument('--provisioner',
                         help='The external provisioner to use',
                         default=None, choices=["vagrant", "heat"])
-    parser.add_argument('--heat-stack-name',
-                        help='Name of the heat stack when heat provisioner is used',
-                        default=None)
+    parser.add_argument(
+        '--heat-stack-name', default=None,
+        help='Name of the heat stack when heat provisioner is used',
+    )
     parser.add_argument('--vagrant', action='store_true',
                         help='Provision environment in vagrant')
     parser.add_argument('--ursula-sudo', action='store_true',
                         help='Enable sudo')
+    return parser.parse_known_args()
 
-    args, extra_args = parser.parse_known_args()
+
+def main():
+    args, extra_args = parse_args()
     try:
         log_level = logging.INFO
         if args.ursula_debug:
