@@ -23,7 +23,7 @@ import socket
 import logging
 import argparse
 import subprocess
-from ConfigParser import ConfigParser, NoOptionError
+from ConfigParser import ConfigParser, NoOptionError, NoSectionError
 
 import yaml
 
@@ -36,7 +36,7 @@ def init_logfile():
     config.read('ansible.cfg')
     try:
         cfg_log = config.get('defaults', 'log_path')
-    except NoOptionError:
+    except (NoOptionError, NoSectionError):
         cfg_log = None
 
     logfile = os.path.join(os.getcwd(), cfg_log or 'ursula.log')
