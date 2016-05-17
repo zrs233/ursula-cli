@@ -34,12 +34,17 @@ ANSIBLE_VERSION = '1.9.2-bbg'
 def init_logfile():
     config = ConfigParser()
     config.read('ansible.cfg')
+
     try:
         cfg_log = config.get('defaults', 'log_path')
     except (NoOptionError, NoSectionError):
         cfg_log = None
 
-    logfile = os.path.join(os.getcwd(), cfg_log or 'ursula.log')
+    if cfg_log:
+        logfile = os.path.expanduser(cfg_log)
+    else:
+        logfile = 'ursula.log'
+
     if not os.path.exists(logfile):
         with open(logfile, 'a'):
             os.utime(logfile, None)
