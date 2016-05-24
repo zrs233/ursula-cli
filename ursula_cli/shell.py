@@ -23,12 +23,15 @@ import socket
 import logging
 import argparse
 import subprocess
+from distutils.version import LooseVersion
 from ConfigParser import ConfigParser, NoOptionError, NoSectionError
 
 import yaml
+import ansible
+
 
 LOG = logging.getLogger(__name__)
-ANSIBLE_VERSION = '1.9.2-bbg'
+MINIMUM_ANSIBLE_VERSION = '1.9'
 
 
 def init_logfile():
@@ -62,20 +65,12 @@ def _initialize_logger(level=logging.DEBUG, logfile=None):
 
 
 def _check_ansible_version():
-    process = subprocess.Popen(
-        ["ansible-playbook --version"], shell=True,
-        stdout=subprocess.PIPE)
-    output, _ = process.communicate()
-    retcode = process.poll()
-    if retcode:
-        raise Exception("Error discovering ansible version")
-    version_output = output.split('\n')[0]
-    version = version_output.split(' ')[1]
-    if not version == ANSIBLE_VERSION:
+    version = ansible.__version__
+    if not LooseVersion(version) >= LooseVersion(MINIMUM_ANSIBLE_VERSION):
         raise Exception("You are using ansible-playbook '%s'. "
-                        "Current required version is: '%s'. You may install "
-                        "the correct version with 'pip install -U -r "
-                        "requirements.txt'" % (version, ANSIBLE_VERSION))
+                        "Current required version is at least: '%s'. You may "
+                        "install the correct version with 'pip install -U -r "
+                        "requirements.txt'" % (version, MINIMUM_ANSIBLE_VERSION))
 
 
 def _append_envvar(key, value):
@@ -126,7 +121,7 @@ def _run_ansible(inventory, playbook, user='root', module_path='./library',
     ]
 
     if sudo:
-        command.append("--sudo")
+        command.append("--become --become-method sudo")
     command += extra_args
 
     LOG.debug("Running command: %s with environment: %s",
