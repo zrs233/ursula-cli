@@ -121,7 +121,7 @@ def _run_ansible(inventory, playbook, user='root', module_path='./library',
     ]
 
     if sudo:
-        command.append("--become --become-method sudo")
+        command.extend(['--become', '--become-method', 'sudo'])
     command += extra_args
 
     LOG.debug("Running command: %s with environment: %s",
